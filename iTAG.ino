@@ -128,7 +128,7 @@ iTAG::init(const char* tag_name )
                            BLECharacteristic::PROPERTY_NOTIFY
                        );
 
-    _batt = 0;
+    _batt = 20;
     _bl_char[CH_BATT]->setValue(&_batt,1);
 
 // Create a BLE Descriptor - not used in order to mimic iTag
@@ -174,10 +174,8 @@ void setup()
     
     Serial.begin(115200);
 
-// PRGM btn
-    pinMode(0, INPUT);
 
-// OLED
+    pinMode(0, INPUT);
     pinMode(16, OUTPUT);
     digitalWrite(16, LOW);  // set GPIO16 low to reset OLED
     delay(50);
@@ -190,13 +188,9 @@ void setup()
 
     esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
 
-    g_itag.init("iTAG-JB");
+    g_itag.init("iTAG-EMU");
 
-    delay(3000);
-
-    if (g_itag.is_connected() )
-          g_itag.set_batt( 30 );
-
+    delay(1000);
 }
 
 
@@ -205,16 +199,38 @@ void loop()
 {
 
   static uint8_t alert = -1;
+  static uint8_t bCon  = 0;
 
-// BLE Connected ?
+  if( bCon && !g_itag.is_connected() )
+  {
+     esp_deep_sleep_start();
+  }
+
+// Connected ?
     if (!g_itag.is_connected() )
     {
-        Serial.println("ESP32 go to sleep for " + String(TIME_TO_SLEEP) + " s");
-        esp_deep_sleep_start();
+        for( int i=0; i<5; ++i )
+        {
+          if( g_itag.is_connected() )
+             break;
+
+           delay(500);
+        }
+
+        delay(500);
+
+
+         if( !g_itag.is_connected() )
+         {
+            Serial.println("ESP32 go to sleep for " + String(TIME_TO_SLEEP) + " s");
+            esp_deep_sleep_start();
+         }
     }
 
+    bCon = 1;
+
    
-// Button pressed on iTag ?
+// Button pressed ?
    if (!digitalRead(0) )
     {
         g_itag.set_btn( 1 );
@@ -224,8 +240,7 @@ void loop()
             delay(20);
         }
     }
-
-// Client alert ?
+   
    if( g_itag.get_alert() != alert )
    {
            alert  = g_itag.get_alert();
