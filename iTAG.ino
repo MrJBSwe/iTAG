@@ -204,6 +204,7 @@ void loop()
   if( bCon && !g_itag.is_connected() )
   {
      esp_deep_sleep_start();
+     bCon  = 0;
   }
 
 // Connected ?
@@ -224,6 +225,7 @@ void loop()
          {
             Serial.println("ESP32 go to sleep for " + String(TIME_TO_SLEEP) + " s");
             esp_deep_sleep_start();
+            bCon  = 0;
          }
     }
 
