@@ -13,22 +13,27 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset= *
 
 static void wifi_power_save(void);
 
-bool deviceConnected = false;
-
-
+ 
  
 class iTAG
 {
   public:
 
-  void     init( const char* name );
+  void     init( const char* tag_name );
 
   void     set_btn( uint8_t btn );
 
+  uint8_t  get_btn(){ return _btn;}
+
   void     set_batt( uint8_t batt );
 
-  uint8_t  _btn;
-  uint8_t  _batt;
+  uint8_t  get_batt(){ return _batt;}
+
+  bool     is_connected(){ return _cb_server->bConnect;}
+
+  uint8_t  get_alert(){ return _cb_alert->alert;}
+
+
 
   protected:
 
@@ -43,45 +48,42 @@ class iTAG
   class AlertCallbacks: public BLECharacteristicCallbacks
   {
     public:
+    
       void onWrite(BLECharacteristic* pCh )
       {
-  
-          Serial.print("Received Value: ");
-  
          std::string rxValue=pCh->getValue();
 
-  // DEBUG
-         u8x8.setCursor(0, 2);
-          if (rxValue[0] == 2)
-             u8x8.print("ON  ");
-         else if (rxValue[0] == 0)
-            u8x8.print("OFF ");
-  
+         if( rxValue.length()>0 )
+         {
+            alert = rxValue[0];
+         }
       }
+
+      uint8_t alert;
   };
 
   class ServerCallbacks: public BLEServerCallbacks
   {
   public:
-      void onConnect(BLEServer* pServer)
-      {
-          deviceConnected = true;
-      };
+
+      ServerCallbacks():bConnect(false){}
       
-      void onDisconnect(BLEServer* pServer)
-      {
-          deviceConnected = false;
-          esp_deep_sleep_start();
-      }
+      void onConnect(BLEServer* pServer){ bConnect = true;};
+      
+      void onDisconnect(BLEServer* pServer){ bConnect = false; }
+
+      uint8_t bConnect;
   };
 
-  
+ uint8_t            _btn;
+ uint8_t            _batt;
  BLECharacteristic* _bl_char[CH_SZ];
- ServerCallbacks    _cb_server;
+ ServerCallbacks*   _cb_server;
+ AlertCallbacks*    _cb_alert;
 };
 
 void     
-iTAG::init(const char* name )
+iTAG::init(const char* tag_name )
 {
     
     uint8_t new_mac[] = {0xFF, 0xFF, 0xFF, 0x08, 0x08, 0x06};
@@ -89,11 +91,13 @@ iTAG::init(const char* name )
     esp_base_mac_addr_set(new_mac);
 
 // Create the BLE Device
-    BLEDevice::init(name);
+    BLEDevice::init(tag_name);
 
 // Create the BLE Server
     BLEServer *pServer = BLEDevice::createServer();
-    pServer->setCallbacks(&_cb_server);
+
+    _cb_server = new ServerCallbacks();
+    pServer->setCallbacks(_cb_server);
 
 // SIMPLE KEY OR BUTTON SERVICE
     BLEService *pService1 = pServer->createService("0000ffe0-0000-1000-8000-00805f9b34fb");
@@ -113,7 +117,8 @@ iTAG::init(const char* name )
                            BLECharacteristic::PROPERTY_WRITE_NR
                        );
 
-    _bl_char[CH_ALERT]->setCallbacks(new AlertCallbacks() );
+    _cb_alert = new AlertCallbacks();
+    _bl_char[CH_ALERT]->setCallbacks( _cb_alert );
 
 // BATTERY_SERVICE
     BLEService *pService3 = pServer->createService(BLEUUID((uint16_t)0x180F));
@@ -167,12 +172,12 @@ iTAG::init(const char* name )
 void setup()
 {
     
-
-     
     Serial.begin(115200);
 
-
+// PRGM btn
     pinMode(0, INPUT);
+
+// OLED
     pinMode(16, OUTPUT);
     digitalWrite(16, LOW);  // set GPIO16 low to reset OLED
     delay(50);
@@ -185,15 +190,13 @@ void setup()
 
     esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
 
-    g_itag.init("iTAG");
+    g_itag.init("iTAG-EMU");
 
     delay(3000);
 
-    if (!deviceConnected)
-    {
-        Serial.println("ESP32 go to sleep for " + String(TIME_TO_SLEEP) + " s");
-        esp_deep_sleep_start();
-    }
+    if (g_itag.is_connected() )
+          g_itag.set_batt( 30 );
+
 }
 
 
@@ -201,9 +204,19 @@ void setup()
 void loop()
 {
 
+  static uint8_t alert = -1;
+
+// BLE Connected ?
+    if (!g_itag.is_connected() )
+    {
+        Serial.println("ESP32 go to sleep for " + String(TIME_TO_SLEEP) + " s");
+        esp_deep_sleep_start();
+    }
+
+   
+// Button pressed on iTag ?
    if (!digitalRead(0) )
     {
-       
         g_itag.set_btn( 1 );
 
         while (!digitalRead(0))
@@ -211,9 +224,19 @@ void loop()
             delay(20);
         }
     }
-    else
-    {
 
-        delay(100);
-    }
+// Client alert ?
+   if( g_itag.get_alert() != alert )
+   {
+           alert  = g_itag.get_alert();
+    
+           u8x8.setCursor(0, 2);
+            if (alert == 2)
+               u8x8.print("ON  ");
+           else if (alert == 0)
+              u8x8.print("OFF ");
+   }
+
+   delay(100);
+   
 }
