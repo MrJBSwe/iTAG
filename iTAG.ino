@@ -128,7 +128,7 @@ iTAG::init(const char* tag_name )
                            BLECharacteristic::PROPERTY_NOTIFY
                        );
 
-    _batt = 20;
+    _batt = 0;
     _bl_char[CH_BATT]->setValue(&_batt,1);
 
 // Create a BLE Descriptor - not used in order to mimic iTag
@@ -190,7 +190,7 @@ void setup()
 
     esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
 
-    g_itag.init("iTAG-EMU");
+    g_itag.init("iTAG-JB");
 
     delay(3000);
 
