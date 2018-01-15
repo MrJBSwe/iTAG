@@ -13,79 +13,97 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset= *
 
 static void wifi_power_save(void);
 
- 
- 
-class iTAG
+
+
+class BLEiTAGServ
 {
-  public:
+public:
 
-  void     init( const char* tag_name );
+    void     init( const char* tag_name );
 
-  void     set_btn( uint8_t btn );
+    void     set_btn( uint8_t btn );
 
-  uint8_t  get_btn(){ return _btn;}
+    uint8_t  get_btn()
+    {
+        return _btn;
+    }
 
-  void     set_batt( uint8_t batt );
+    void     set_batt( uint8_t batt );
 
-  uint8_t  get_batt(){ return _batt;}
+    uint8_t  get_batt()
+    {
+        return _batt;
+    }
 
-  bool     is_connected(){ return _cb_server->bConnect;}
+    bool     is_connected()
+    {
+        return _cb_server->bConnect;
+    }
 
-  uint8_t  get_alert(){ return _cb_alert->alert;}
+    uint8_t  get_alert()
+    {
+        return _cb_alert->alert;
+    }
 
 
 
-  protected:
+protected:
 
-  enum
-  {
-      CH_BTN,
-      CH_ALERT,
-      CH_BATT,
-      CH_SZ
-  };
+    enum
+    {
+        CH_BTN,
+        CH_ALERT,
+        CH_BATT,
+        CH_SZ
+    };
 
-  class AlertCallbacks: public BLECharacteristicCallbacks
-  {
+    class AlertCallbacks: public BLECharacteristicCallbacks
+    {
     public:
-    
-      void onWrite(BLECharacteristic* pCh )
-      {
-         std::string rxValue=pCh->getValue();
 
-         if( rxValue.length()>0 )
-         {
-            alert = rxValue[0];
-         }
-      }
+        void onWrite(BLECharacteristic* pCh )
+        {
+            std::string rxValue=pCh->getValue();
 
-      uint8_t alert;
-  };
+            if( rxValue.length()>0 )
+            {
+                alert = rxValue[0];
+            }
+        }
 
-  class ServerCallbacks: public BLEServerCallbacks
-  {
-  public:
+        uint8_t alert;
+    };
 
-      ServerCallbacks():bConnect(false){}
-      
-      void onConnect(BLEServer* pServer){ bConnect = true;};
-      
-      void onDisconnect(BLEServer* pServer){ bConnect = false; }
+    class ServerCallbacks: public BLEServerCallbacks
+    {
+    public:
 
-      uint8_t bConnect;
-  };
+        ServerCallbacks():bConnect(false) {}
 
- uint8_t            _btn;
- uint8_t            _batt;
- BLECharacteristic* _bl_char[CH_SZ];
- ServerCallbacks*   _cb_server;
- AlertCallbacks*    _cb_alert;
+        void onConnect(BLEServer* pServer)
+        {
+            bConnect = true;
+        };
+
+        void onDisconnect(BLEServer* pServer)
+        {
+            bConnect = false;
+        }
+
+        uint8_t bConnect;
+    };
+
+    uint8_t            _btn;
+    uint8_t            _batt;
+    BLECharacteristic* _bl_char[CH_SZ];
+    ServerCallbacks*   _cb_server;
+    AlertCallbacks*    _cb_alert;
 };
 
-void     
-iTAG::init(const char* tag_name )
+void
+BLEiTAGServ::init(const char* tag_name )
 {
-    
+
     uint8_t new_mac[] = {0xFF, 0xFF, 0xFF, 0x08, 0x08, 0x06};
     //srand(esp_random());for (int i = 0; i < sizeof(new_mac); i++) { new_mac[i] = rand() % 256;}
     esp_base_mac_addr_set(new_mac);
@@ -106,29 +124,29 @@ iTAG::init(const char* tag_name )
                            BLECharacteristic::PROPERTY_NOTIFY |
                            BLECharacteristic::PROPERTY_READ
                        );
- 
- 
+
+
 // IMMEDIATE ALERT SERVICE
     BLEService *pService2 = pServer->createService(BLEUUID((uint16_t)0x1802));
     _bl_char[CH_ALERT] = pService2->createCharacteristic(
-                           BLEUUID((uint16_t)0x02a06),
-                           BLECharacteristic::PROPERTY_NOTIFY |
-                           BLECharacteristic::PROPERTY_WRITE  |
-                           BLECharacteristic::PROPERTY_WRITE_NR
-                       );
+                             BLEUUID((uint16_t)0x02a06),
+                             BLECharacteristic::PROPERTY_NOTIFY |
+                             BLECharacteristic::PROPERTY_WRITE  |
+                             BLECharacteristic::PROPERTY_WRITE_NR
+                         );
 
     _cb_alert = new AlertCallbacks();
     _bl_char[CH_ALERT]->setCallbacks( _cb_alert );
 
 // BATTERY_SERVICE
     BLEService *pService3 = pServer->createService(BLEUUID((uint16_t)0x180F));
-   _bl_char[CH_BATT]  = pService3->createCharacteristic(
-                           BLEUUID((uint16_t)0x2A19),
-                           BLECharacteristic::PROPERTY_READ   |
-                           BLECharacteristic::PROPERTY_NOTIFY
-                       );
+    _bl_char[CH_BATT]  = pService3->createCharacteristic(
+                             BLEUUID((uint16_t)0x2A19),
+                             BLECharacteristic::PROPERTY_READ   |
+                             BLECharacteristic::PROPERTY_NOTIFY
+                         );
 
-    _batt = 20;
+    _batt = 0;
     _bl_char[CH_BATT]->setValue(&_batt,1);
 
 // Create a BLE Descriptor - not used in order to mimic iTag
@@ -143,35 +161,35 @@ iTAG::init(const char* tag_name )
     pService3->start();
 
 // Start advertising
-   pServer->getAdvertising()->start();
+    pServer->getAdvertising()->start();
 }
 
 
- void     
- iTAG::set_btn( uint8_t btn )
- {
-     _btn = btn;
-     _bl_char[CH_BTN]->setValue(&_btn, 1);
-     _bl_char[CH_BTN]->notify();
- }
+void
+BLEiTAGServ::set_btn( uint8_t btn )
+{
+    _btn = btn;
+    _bl_char[CH_BTN]->setValue(&_btn, 1);
+    _bl_char[CH_BTN]->notify();
+}
 
 
-  void     
- iTAG::set_batt( uint8_t batt )
- {
-     _batt = batt;
-     _bl_char[CH_BATT]->setValue(&_batt, 1);
-     _bl_char[CH_BATT]->notify();
- }
+void
+BLEiTAGServ::set_batt( uint8_t batt )
+{
+    _batt = batt;
+    _bl_char[CH_BATT]->setValue(&_batt, 1);
+    _bl_char[CH_BATT]->notify();
+}
 
 
 
- iTAG g_itag;
+BLEiTAGServ g_itag;
 
 
 void setup()
 {
-    
+
     Serial.begin(115200);
 
 
@@ -188,7 +206,8 @@ void setup()
 
     esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
 
-    g_itag.init("iTAG-EMU");
+    g_itag.init("iTAG");
+    g_itag.set_batt( 10 );
 
     delay(1000);
 }
@@ -198,62 +217,68 @@ void setup()
 void loop()
 {
 
-  static uint8_t alert = -1;
-  static uint8_t bCon  = 0;
+    static uint8_t alert = -1;
+    static uint8_t bCon  = 0;
 
-  if( bCon && !g_itag.is_connected() )
-  {
-     esp_deep_sleep_start();
-     bCon  = 0;
-  }
+    if( bCon && !g_itag.is_connected() )
+    {
+        bCon  = 0;
+        esp_deep_sleep_start();
+    }
 
 // Connected ?
     if (!g_itag.is_connected() )
     {
         for( int i=0; i<5; ++i )
         {
-          if( g_itag.is_connected() )
-             break;
+            if( g_itag.is_connected() )
+                break;
 
-           delay(500);
+            delay(500);
         }
 
         delay(500);
 
 
-         if( !g_itag.is_connected() )
-         {
+        if( !g_itag.is_connected() )
+        {
             Serial.println("ESP32 go to sleep for " + String(TIME_TO_SLEEP) + " s");
-            esp_deep_sleep_start();
             bCon  = 0;
-         }
+            esp_deep_sleep_start();
+        }
     }
 
     bCon = 1;
 
-   
+
 // Button pressed ?
-   if (!digitalRead(0) )
+    if (!digitalRead(0) )
     {
-        g_itag.set_btn( 1 );
+        g_itag.set_btn( 1 ); // Send state to client
 
         while (!digitalRead(0))
         {
             delay(20);
         }
     }
-   
-   if( g_itag.get_alert() != alert )
-   {
-           alert  = g_itag.get_alert();
-    
-           u8x8.setCursor(0, 2);
-            if (alert == 2)
-               u8x8.print("ON  ");
-           else if (alert == 0)
-              u8x8.print("OFF ");
-   }
 
-   delay(100);
-   
+// Alert sent from client ?
+    if( g_itag.get_alert() != alert )
+    {
+        alert  = g_itag.get_alert();
+
+        u8x8.setCursor(0, 2);
+        if (alert == 2)
+        {
+            u8x8.print("ON  ");
+        }
+
+        else if (alert == 0)
+        {
+            u8x8.print("OFF ");
+        }
+    }
+
+    delay(100);
+
 }
